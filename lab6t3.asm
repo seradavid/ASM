@@ -1,0 +1,34 @@
+; Lab 6 task 3
+CODE SEGMENT PARA PUBLIC 'CODE'
+	START PROC FAR
+	ASSUME	 CS:CODE
+	
+	PUSH	DS
+	XOR		AX, AX
+	PUSH 	AX
+	
+	PUSH	1
+	PUSH	2
+	PUSH	3
+	
+	SUB		SP, 4
+	
+	MOV		BP, SP
+	
+	MOV		AX, [BP+6]
+	MOV		DX, [BP+4]
+	
+	MOV		[BP], DX
+	MOV		[BP-2], AX
+	
+	POP		AX
+	POP		AX
+	POP		AX
+	POP 	AX
+	POP		AX
+	
+	RET
+	
+	START ENDP
+CODE ENDS
+END START
