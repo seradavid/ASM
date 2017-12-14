@@ -1,0 +1,68 @@
+; Lab 10 task 2
+
+DRAW MACRO STARTX, STARTY, COLOUR
+	LOCAL	COLUMN, ROW, FINAL
+	PUSH	AX
+	PUSH	DX
+	PUSH	CX
+	
+	MOV		CX, STARTX
+	MOV		DX, STARTY
+	DEC 	DX
+	MOV		AH, 0CH
+	MOV		AL, COLOUR
+	
+	COLUMN:
+		SUB	DX, STARTY
+		CMP	DX, 15
+		JGE	FINAL
+		ADD	DX, STARTY
+		
+		MOV	CX, STARTX
+		INC	DX
+		ROW:
+			SUB		CX, STARTX
+			CMP		CX, 15
+			JGE		COLUMN
+			ADD		CX, STARTX
+			
+			INT		10H
+			
+			INC		CX
+			JMP 	ROW
+	FINAL:		
+	POP		CX
+	POP		DX
+	POP		AX
+ENDM
+
+CODE SEGMENT PARA PUBLIC 'CODE'
+	START PROC FAR
+		ASSUME CS:CODE
+		
+		MOV		AH, 0FH	; read current mode
+		INT 	10H
+		
+		PUSH	AX	; save current mode
+		PUSH	BX
+		
+		MOV		AH, 00H	; set to draw mode
+		MOV		AL, 12H
+		INT		10H
+
+		DRAW	0H, 0H, 0CH
+		DRAW	20H, 20H, 2H
+		
+		MOV		AH, 07H	; wait for keypress
+		INT		21H
+		
+		POP		BX
+		POP		AX
+		MOV		AH, 00H	;return to text mode
+		INT		10H
+		
+		MOV		AH, 4CH	; return to OS
+		INT 	21H
+	START ENDP
+CODE ENDS
+END START
