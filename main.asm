@@ -69,16 +69,11 @@
 .DSEG
 ;.org	 0x200
 read_string:	.BYTE		16				; array of 16 bytes
-index:			.BYTE		1				; index to traverse the array
 
 .CSEG
 .org	0x0000
-jmp		start
+rjmp		start
 
-.org    INT_VECTORS_SIZE
-end_char:		.db			'$', 0
-length:			.db			16, 0
-size:			.db			1, 0
 ; ****************************** Main Program Code **************************
 start:
 ; initialize the stack pointer to the highest RAM address
@@ -107,25 +102,11 @@ start:
 ; initialize the serial communication
 	call	serial_init						; initialize serial communication with 9600 baudrate
 
-; initialize the array and the index
-	ldi		temp, 0
-	ldi		data, 0
-	ldi		r18, 1
-	ldi		r19, 16
-	sts		index, data
-init:	
-	sts		read_string + index, data
-	add		temp, r18
-	sts		index, temp
-	cp		temp, r19
-	brlo	init
-	sts		index, data
-
 ; display the first line of information
-    ;ldi     ZH, high(program_date)			; point to the information that is to be displayed
-    ;ldi     ZL, low(program_date)
+    ;ldi     ZH, high(read_string)			; point to the information that is to be displayed
+    ;ldi     ZL, low(read_string)
     ;ldi     temp, lcd_LineOne               ; point to where the information should be displayed
-    ;call    lcd_write_string_8d
+    ;call    lcd_write_string
 
 ; display the second line of information
     ;ldi     ZH, high(program_version)       ; point to the information that is to be displayed
@@ -134,7 +115,11 @@ init:
     ;call    lcd_write_string_8d
 
 ; endless loop
-here:
+main:
+	ldi		XH, high(read_string)			; initialize the pointer to the beginning of array
+	ldi		XL, low(read_string)
+	ldi		r18, 0
+
 	call	serial_read						; read a string from serial monitor
 
 	ldi		ZH, HIGH(read_string)			; point to where the information is
@@ -144,7 +129,7 @@ here:
 
 	call	lcd_write_string				; call the write procedure
 
-    rjmp    here							; loop endlessly
+    rjmp    main							; loop endlessly
 
 ; ****************************** End of Main Program Code *******************
 
@@ -189,24 +174,19 @@ serial_transmit:
 ; ---------------------------------------------------------------------------
 
 serial_read:
-	call	serial_receive					; read a byte from serial monitor
+	call	serial_receive
 
-	ldi		r20, HIGH(end_char)				; load the final character
-	cp		data, r20						; see if it is the final character
-	breq	serial_read_1					; if it is, we end the string
-											; otherwise we save the byte
-	sts		read_string + index, data		; save the byte
-	lds		temp, index						; load the index
-	ldi		r20, HIGH(size)					; load the amount to increase 
-	add		temp, r20						; increment the index
-	sts		index, temp						; store it back
-	ldi		r20, HIGH(length)				; load the max allowed length
-	cp		temp, r20						; see if we exceeded it
-	brlo	serial_read						; if we have < 16 chars we can read another
+	cpi		data, 'a'
+	breq	serial_read_1
+	st		X+, data
+	inc		r18
+	cpi		r18, 16
+	brlo	serial_read
 
-serial_read_1:								; end of string
-	ldi		r20, 0							;
-	sts		read_string + index, r20		; place a 0 to mark the end
+	serial_read_1:
+	call	serial_transmit
+	ldi		data, 0
+	st		X+, data
 	ret
 
 ; ============================== End of Serial Communication Subroutines ====
@@ -273,8 +253,8 @@ lcd_write_string:
     push    ZL
 
 ; fix up the pointers for use with the 'lpm' instruction
-    lsl     ZL                              ; shift the pointer one bit left for the lpm instruction
-    rol     ZH
+    ;lsl     ZL                              ; shift the pointer one bit left for the lpm instruction
+    ;rol     ZH
 
 ; set up the initial DDRAM address
     ori     temp, lcd_SetCursor             ; convert the plain address to a set cursor instruction
@@ -286,13 +266,13 @@ lcd_write_string:
 lcd_write_string_01:
     lpm     temp, Z+                        ; get a character
     cpi     temp,  0                        ; check for end of string
-    breq    lcd_write_string_02          ; done
+    breq    lcd_write_string_02				; done
 
 ; arrive here if this is a valid character
-    call    lcd_write_character          ; display the character
+    call    lcd_write_character				; display the character
     ldi     temp, 80                        ; 40 uS delay (min)
     call    delayTx1uS
-    rjmp    lcd_write_string_01          ; not done, send another character
+    rjmp    lcd_write_string_01				; not done, send another character
 
 ; arrive here when all characters in the message have been sent to the LCD module
 lcd_write_string_02:
@@ -305,7 +285,7 @@ lcd_write_string_02:
 lcd_write_character:
     sbi     lcd_RS_port, lcd_RS_bit         ; select the Data Register (RS high)
     cbi     lcd_E_port, lcd_E_bit           ; make sure E is initially low
-    call    lcd_write                     ; write the data
+    call    lcd_write						; write the data
     ret
 
 ; ---------------------------------------------------------------------------
@@ -313,7 +293,7 @@ lcd_write_character:
 lcd_write_instruction:
     cbi     lcd_RS_port, lcd_RS_bit         ; select the Instruction Register (RS low)
     cbi     lcd_E_port, lcd_E_bit           ; make sure E is initially low
-    call    lcd_write                     ; write the instruction
+    call    lcd_write						; write the instruction
     ret
 
 ; ---------------------------------------------------------------------------
