@@ -122,6 +122,11 @@ main:
 
 	call	serial_read						; read a string from serial monitor
 
+	ldi     temp, lcd_Clear                 ; clear display RAM
+    call    lcd_write_instruction
+    ldi     temp, 4                         ; 1.64 mS delay
+    call    delayTx1mS
+
 	ldi		ZH, HIGH(read_string)			; point to where the information is
 	ldi		ZL, LOW(read_string)
 
@@ -176,7 +181,7 @@ serial_transmit:
 serial_read:
 	call	serial_receive
 
-	cpi		data, 'a'
+	cpi		data, '\n'
 	breq	serial_read_1
 	st		X+, data
 	inc		r18
@@ -184,9 +189,8 @@ serial_read:
 	brlo	serial_read
 
 	serial_read_1:
-	call	serial_transmit
 	ldi		data, 0
-	st		X+, data
+	st		X, data
 	ret
 
 ; ============================== End of Serial Communication Subroutines ====
@@ -264,7 +268,7 @@ lcd_write_string:
 
 ; write the string of characters
 lcd_write_string_01:
-    lpm     temp, Z+                        ; get a character
+    ld      temp, Z+                        ; get a character
     cpi     temp,  0                        ; check for end of string
     breq    lcd_write_string_02				; done
 
