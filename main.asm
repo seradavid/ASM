@@ -1,9 +1,6 @@
 ;
 ; LDCScreen.asm
 ;
-; Created: 25-Nov-17 11:42:27 AM
-; Author : Root
-;
 
 .equ    F_CPU               = 16000000      ; system clock frequency
 .equ	BAUD				= 9600			; Baud rate
@@ -66,11 +63,10 @@
 .equ    lcd_FunctionSet8bit = 0b00111000    ; 8-bit data, 2-line display, 5 x 7 font
 .equ    lcd_SetCursor       = 0b10000000    ; set cursor position
 
-.DSEG
-;.org	 0x200
+.DSEG										; Data segment
 read_string:	.BYTE		16				; array of 16 bytes
 
-.CSEG
+.CSEG										; Code segment
 .org	0x0000
 rjmp		start
 
@@ -102,35 +98,23 @@ start:
 ; initialize the serial communication
 	call	serial_init						; initialize serial communication with 9600 baudrate
 
-; display the first line of information
-    ;ldi     ZH, high(read_string)			; point to the information that is to be displayed
-    ;ldi     ZL, low(read_string)
-    ;ldi     temp, lcd_LineOne               ; point to where the information should be displayed
-    ;call    lcd_write_string
-
-; display the second line of information
-    ;ldi     ZH, high(program_version)       ; point to the information that is to be displayed
-    ;ldi     ZL, low(program_version)
-    ;ldi     temp, lcd_LineTwo               ; point to where the information should be displayed
-    ;call    lcd_write_string_8d
-
 ; endless loop
 main:
 	ldi		XH, high(read_string)			; initialize the pointer to the beginning of array
 	ldi		XL, low(read_string)
-	ldi		r18, 0
+	ldi		r18, 0							; r18 is used to count the number of characters read
 
 	call	serial_read						; read a string from serial monitor
 
 	ldi     temp, lcd_Clear                 ; clear display RAM
     call    lcd_write_instruction
-    ldi     temp, 4                         ; 1.64 mS delay
+    ldi     temp, 4                         
     call    delayTx1mS
 
-	ldi		ZH, HIGH(read_string)			; point to where the information is
+	ldi		ZH, HIGH(read_string)			; set up the data
 	ldi		ZL, LOW(read_string)
 
-	ldi		temp, lcd_LineOne				; point to the line that should be displayed to
+	ldi		temp, lcd_LineOne				; set up the line
 
 	call	lcd_write_string				; call the write procedure
 
@@ -157,37 +141,44 @@ serial_init:
 ; ---------------------------------------------------------------------------
 
 serial_receive:
-	; Wait for data to be received
+; Wait for data to be received
 	lds		temp, UCSR0A
 	sbrs	temp, RXC0
 	rjmp	serial_receive
-	; Get received data from buffer
+
+; Get received data from buffer
 	lds		data, UDR0
 	ret
 
 ; ---------------------------------------------------------------------------
 
 serial_transmit:
-	; Wait for empty transmit buffer
+; Wait for empty transmit buffer
 	lds		temp, UCSR0A
 	sbrs	temp, UDRE0
 	rjmp	serial_transmit
-	; Put data into buffer and send it
+
+; Put data into buffer and send it
 	sts		UDR0, data
 	ret
 
 ; ---------------------------------------------------------------------------
 
 serial_read:
+; Get a character from the serial monitor
 	call	serial_receive
 
+; Check if it is "Enter" or '\n' as that is the end of the message
 	cpi		data, '\n'
 	breq	serial_read_1
-	st		X+, data
-	inc		r18
-	cpi		r18, 16
+
+; Store the character in an array
+	st		X+, data						; store data in the array, and increment the index
+	inc		r18								; increment the number of characters read
+	cpi		r18, 16							; check if we have more than 16 characters
 	brlo	serial_read
 
+; If 16 characters are read, or '\n' is encountered, put a 0 at the end of the array
 	serial_read_1:
 	ldi		data, 0
 	st		X, data
@@ -205,12 +196,12 @@ lcd_init:
 ; Reset the LCD controller.
     ldi     temp, lcd_FunctionReset         ; first part of reset sequence
     call    lcd_write_instruction
-    ldi     temp, 10                        ; 4.1 mS delay (min)
+    ldi     temp, 10                        ; 4.1 mS delay
     call    delayTx1mS
 
     ldi     temp, lcd_FunctionReset         ; second part of reset sequence
     call    lcd_write_instruction
-    ldi     temp, 200                       ; 100 uS delay (min)
+    ldi     temp, 200                       ; 100 uS delay
     call    delayTx1uS
 
     ldi     temp, lcd_FunctionReset         ; third part of reset sequence
@@ -221,31 +212,31 @@ lcd_init:
 ; Function Set instruction
     ldi     temp, lcd_FunctionSet8bit       ; set mode, lines, and font
     call    lcd_write_instruction
-    ldi     temp, 80                        ; 40 uS delay (min)
+    ldi     temp, 80                        ; 40 uS delay
     call    delayTx1uS
 
 ; Display On/Off Control instruction - turns OFF the display
     ldi     temp, lcd_DisplayOff            ; turn display OFF
     call    lcd_write_instruction
-    ldi     temp, 80                        ; 40 uS delay (min)
+    ldi     temp, 80                        ; 40 uS delay
     call    delayTx1uS
 
 ; Clear Display instruction
     ldi     temp, lcd_Clear                 ; clear display RAM
     call    lcd_write_instruction
-    ldi     temp, 4                         ; 1.64 mS delay (min)
+    ldi     temp, 4                         ; 1.64 mS delay
     call    delayTx1mS
 
 ; Entry Mode Set instruction
     ldi     temp, lcd_EntryMode             ; set desired shift characteristics
     call    lcd_write_instruction
-    ldi     temp, 80                        ; 40 uS delay (min)
+    ldi     temp, 80                        ; 40 uS delay
     call    delayTx1uS
 
 ; Display On/Off Control instruction - turns ON the display
     ldi     temp, lcd_DisplayOn             ; turn the display ON
     call    lcd_write_instruction
-    ldi     temp, 80                        ; 40 uS delay (min)
+    ldi     temp, 80                        ; 40 uS delay
     call    delayTx1uS
     ret
 
@@ -255,10 +246,6 @@ lcd_write_string:
 ; preserve registers
     push    ZH                              ; preserve pointer registers
     push    ZL
-
-; fix up the pointers for use with the 'lpm' instruction
-    ;lsl     ZL                              ; shift the pointer one bit left for the lpm instruction
-    ;rol     ZH
 
 ; set up the initial DDRAM address
     ori     temp, lcd_SetCursor             ; convert the plain address to a set cursor instruction
@@ -274,7 +261,7 @@ lcd_write_string_01:
 
 ; arrive here if this is a valid character
     call    lcd_write_character				; display the character
-    ldi     temp, 80                        ; 40 uS delay (min)
+    ldi     temp, 80                        ; 40 uS delay
     call    delayTx1uS
     rjmp    lcd_write_string_01				; not done, send another character
 
@@ -304,6 +291,7 @@ lcd_write_instruction:
 
 lcd_write:
 ; set up the data bits
+; sbrs - skip if bit in register is set
     sbi     lcd_D7_port, lcd_D7_bit         ; assume that the data bit is '1'
     sbrs    temp, 7                         ; check the actual data value
     cbi     lcd_D7_port, lcd_D7_bit         ; arrive here only if the data was actually '0'
@@ -337,11 +325,10 @@ lcd_write:
     cbi     lcd_D0_port, lcd_D0_bit
 
 ; write the data
-                                            ; 'Address set-up time' (40 nS)
     sbi     lcd_E_port, lcd_E_bit           ; Enable pin high
-    call    delay1uS                        ; implement 'Data set-up time' (80 nS) and 'Enable pulse width' (230 nS)
+    call    delay1uS                        ; implement 'Data set-up time' and 'Enable pulse width'
     cbi     lcd_E_port, lcd_E_bit           ; Enable pin low
-    call    delay1uS                        ; implement 'Data hold time' (10 nS) and 'Enable cycle time' (500 nS)
+    call    delay1uS                        ; implement 'Data hold time' and 'Enable cycle time'
     ret
 
 ; ============================== End of 8-bit LCD Subroutines ===============
